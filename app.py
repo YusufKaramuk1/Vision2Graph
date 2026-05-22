@@ -23,6 +23,7 @@ from src.analytics.regions import analyze_regions
 from src.analytics.resilience import resilience_score
 from src.analytics.routing import route_impact
 from src.analytics.scale import format_length, meters_per_pixel
+from src.analytics.simplification import DETAIL_LEVELS, generalization_levels
 from src.inference.infer_road_mask import (load_model, predict_mask,
                                            resolve_device)
 from src.simulation.attack import simulate
@@ -521,6 +522,32 @@ def render_regions_tab(result, cfg):
              use_container_width=True)
 
 
+def render_simplification_tab(result):
+    graph = result["graph"]
+    st.write("Yol grafigi farkli detay seviyelerinde sadelestirilir: dusuk "
+             "kritiklikli yollar atilarak ag daha genel bir omurgaya indirgenir "
+             "(harita genellestirme).")
+
+    levels = generalization_levels(graph)
+    st.subheader("Detay seviyeleri")
+    st.dataframe(
+        [{"seviye": lvl["level"], "ad": lvl["name"],
+          "kavsak": lvl["node_count"], "yol": lvl["edge_count"],
+          "yol %": lvl["edge_ratio_pct"], "uzunluk %": lvl["length_ratio_pct"]}
+         for lvl in levels],
+        use_container_width=True)
+
+    choice = st.radio(
+        "Goruntulenecek detay seviyesi", [lvl["level"] for lvl in levels],
+        format_func=lambda lv: f"Seviye {lv} - {DETAIL_LEVELS[lv][0]}",
+        horizontal=True)
+    selected = next(lvl for lvl in levels if lvl["level"] == choice)
+    st.image(to_rgb(draw_graph_overlay(result["source"], selected["graph"])),
+             caption=f"Seviye {choice}: {selected['name']} - yollarin "
+                     f"%{selected['edge_ratio_pct']}'i korundu",
+             use_container_width=True)
+
+
 def main():
     st.set_page_config(page_title="Vision2Graph", layout="wide")
     cfg = load_config()
@@ -584,10 +611,12 @@ def main():
         return
 
     (tab_demo, tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
-     tab_route, tab_improve, tab_regions, tab_interactive) = st.tabs(
+     tab_route, tab_improve, tab_regions, tab_simplify,
+     tab_interactive) = st.tabs(
         ["Demo Senaryo", "Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
          "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)",
-         "A-B Rota", "Iyilestirme", "Bolge Analizi", "Interaktif Graph"])
+         "A-B Rota", "Iyilestirme", "Bolge Analizi", "Sadelestirme",
+         "Interaktif Graph"])
     with tab_demo:
         render_demo_tab(result)
     with tab_input:
@@ -608,6 +637,8 @@ def main():
         render_improvement_tab(result, cfg)
     with tab_regions:
         render_regions_tab(result, cfg)
+    with tab_simplify:
+        render_simplification_tab(result)
     with tab_interactive:
         render_interactive_tab(result)
 

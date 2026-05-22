@@ -3,6 +3,7 @@ from src.analytics.criticality import analyze, node_criticality
 from src.analytics.explainability import explain_critical_nodes
 from src.analytics.resilience import resilience_score
 from src.analytics.routing import route_impact, shortest_route
+from src.analytics.simplification import generalization_levels
 from src.analytics.vulnerability import articulation_points, bridge_edges
 from src.analytics.worst_case import largest_component_ratio
 from src.simulation.attack import simulate
@@ -64,3 +65,13 @@ def test_explanations_produced(sample_graph):
     explanations = explain_critical_nodes(sample_graph, analysis)
     assert len(explanations) >= 1
     assert all(item["explanation"] for item in explanations)
+
+
+def test_generalization_levels_monotone(sample_graph):
+    analyze(sample_graph, {})
+    levels = generalization_levels(sample_graph)
+    assert len(levels) == 3
+    counts = [level["edge_count"] for level in levels]
+    # detay azaldikca kenar sayisi azalir (artmaz)
+    assert counts[0] >= counts[1] >= counts[2]
+    assert levels[0]["edge_ratio_pct"] == 100.0
