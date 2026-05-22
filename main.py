@@ -15,6 +15,7 @@ import cv2
 import yaml
 
 from src.analytics.criticality import analyze
+from src.analytics.resilience import resilience_score
 from src.inference.infer_road_mask import (infer_from_image, load_mask_file,
                                            resolve_device)
 from src.simulation.attack import simulate
@@ -23,6 +24,7 @@ from src.topology.skeletonizer import mask_to_skeleton
 from src.visualization.criticality_overlay import draw_criticality_overlay
 from src.visualization.degradation_plot import draw_degradation_plot
 from src.visualization.graph_overlay import draw_graph_overlay
+from src.visualization.resilience_card import draw_resilience_card
 
 ROOT = Path(__file__).resolve().parent
 
@@ -44,32 +46,32 @@ def run(args):
     name = Path(args.input).stem
 
     if args.mask:
-        print("[1/6] Hazir yol maskesi yukleniyor ...")
+        print("[1/7] Hazir yol maskesi yukleniyor ...")
         mask = load_mask_file(args.input)
         base = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
     else:
         device = resolve_device(cfg["inference"]["device"])
-        print(f"[1/6] D-LinkNet ile yol maskesi cikariliyor (device={device}) ...")
+        print(f"[1/7] D-LinkNet ile yol maskesi cikariliyor (device={device}) ...")
         mask, base = infer_from_image(
             ROOT / cfg["paths"]["model_checkpoint"], args.input,
             device, cfg["inference"]["threshold"])
 
     cv2.imwrite(str(output_dir / "masks" / f"{name}_mask.png"), mask)
 
-    print("[2/6] Skeleton cikariliyor ...")
+    print("[2/7] Skeleton cikariliyor ...")
     skeleton = mask_to_skeleton(mask, cfg["skeleton"]["min_object_size"],
                                 cfg["skeleton"]["closing_kernel"])
     cv2.imwrite(str(output_dir / "skeletons" / f"{name}_skeleton.png"), skeleton * 255)
 
-    print("[3/6] Graph olusturuluyor ...")
+    print("[3/7] Graph olusturuluyor ...")
     graph = build_graph(skeleton, cfg["graph"]["spur_length_threshold"],
                         cfg["graph"]["min_component_length"])
 
-    print("[4/6] Graph overlay ciziliyor ...")
+    print("[4/7] Graph overlay ciziliyor ...")
     overlay = draw_graph_overlay(base, graph)
     cv2.imwrite(str(output_dir / "graphs" / f"{name}_graph.png"), overlay)
 
-    print("[5/6] Graph analizi (kritiklik + worst-case) ...")
+    print("[5/7] Graph analizi (kritiklik + worst-case) ...")
     analysis = analyze(graph, cfg)
     crit_overlay = draw_criticality_overlay(base, graph)
     cv2.imwrite(str(output_dir / "graphs" / f"{name}_criticality.png"), crit_overlay)
@@ -77,7 +79,7 @@ def run(args):
               encoding="utf-8") as f:
         json.dump(analysis, f, indent=2, ensure_ascii=False)
 
-    print("[6/6] Kapanma simulasyonu (kasitli vs rastsal saldiri) ...")
+    print("[6/7] Kapanma simulasyonu (kasitli vs rastsal saldiri) ...")
     simulation = simulate(graph, cfg)
     draw_degradation_plot(
         simulation, str(output_dir / "simulations" / f"{name}_degradation.png"))
@@ -85,12 +87,21 @@ def run(args):
               encoding="utf-8") as f:
         json.dump(simulation, f, indent=2, ensure_ascii=False)
 
+    print("[7/7] Resilience skoru hesaplaniyor ...")
+    resilience = resilience_score(graph, analysis, simulation, cfg)
+    draw_resilience_card(
+        resilience, str(output_dir / "reports" / f"{name}_resilience.png"))
+    with open(output_dir / "reports" / f"{name}_resilience.json", "w",
+              encoding="utf-8") as f:
+        json.dump(resilience, f, indent=2, ensure_ascii=False)
+
     print("\n=== Graph Ozeti ===")
     for key, value in basic_counts(graph).items():
         print(f"  {key:18s}: {value}")
 
     print_analysis(analysis)
     print_simulation(simulation)
+    print_resilience(resilience)
     print(f"\nCiktilar: {output_dir}")
 
 
@@ -119,6 +130,16 @@ def print_simulation(simulation):
     print(f"  Dayaniklilik indeksi  -> kasitli : {simulation['targeted']['robustness_index']}")
     print(f"                           rastsal : {simulation['random']['robustness_index']}")
     print(f"  Kirilganlik farki (fragility_gap): {simulation['fragility_gap']}")
+
+
+def print_resilience(resilience):
+    """Faz 4 resilience skorunu konsola ozetler."""
+    print("\n=== Resilience Skoru (Faz 4) ===")
+    print(f"  SKOR: {resilience['score']} / 100   "
+          f"[{resilience['grade']}] {resilience['label']}")
+    print("  Bilesenler (0-1, yuksek = dayanikli):")
+    for key, value in resilience["components"].items():
+        print(f"    {key:24s}: {value}")
 
 
 def main():
