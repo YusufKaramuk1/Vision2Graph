@@ -1,0 +1,28 @@
+paths:
+  model_checkpoint: models/log01_dink34.th
+  data_dir: data/train
+  output_dir: outputs
+
+inference:
+  device: auto          # auto | cpu | cuda
+  threshold: 0.5        # sigmoid esigi (yol/arka plan ayrimi)
+
+skeleton:
+  min_object_size: 64   # bu boyuttan kucuk beyaz lekeleri ele
+  closing_kernel: 3     # yol bosluklarini kapatmak icin morfolojik closing
+
+graph:
+  spur_length_threshold: 15   # bu uzunluktan kisa sarkan kenarlari buda (piksel)
+  min_component_length: 30    # toplam uzunlugu bu degerin altindaki bilesenleri at (piksel)
+
+scale:
+  meters_per_pixel: null      # bir sayi verilirse mesafeler metre cinsinden raporlanir
+
+# Resilience skoru bilesenleri seffaf tutulur (juriye savunulabilir olmasi icin)
+resilience:
+  weights:
+    largest_component_ratio: 0.30
+    avg_degree: 0.15
+    bridge_ratio: 0.20
+    articulation_ratio: 0.20
+    targeted_robustness: 0.15

@@ -1,0 +1,19 @@
+# Veri ve model dosyalari (GitHub icin fazla buyuk)
+data/
+models/
+outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

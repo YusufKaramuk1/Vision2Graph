@@ -1,0 +1,13 @@
+torch==2.7.1
+torchvision==0.22.1
+opencv-python
+numpy
+scikit-image
+networkx
+sknw
+matplotlib
+pandas
+pyyaml
+streamlit
+pyvis
+streamlit-agraph
