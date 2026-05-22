@@ -5,8 +5,11 @@ matplotlib.use("Agg")  # penceresiz ortam: dosyaya cizim
 import matplotlib.pyplot as plt
 
 
-def draw_degradation_plot(simulation, output_path):
-    """Kasitli ve rastsal saldiri LCR egrilerini tek grafikte cizip kaydeder."""
+def draw_degradation_plot(simulation, output_path=None):
+    """Kasitli ve rastsal saldiri LCR egrilerini tek grafikte cizer.
+
+    Matplotlib figurunu dondurur; output_path verilirse ayrica PNG kaydeder.
+    """
     targeted = simulation["targeted"]
     random_attack = simulation["random"]
 
@@ -27,5 +30,6 @@ def draw_degradation_plot(simulation, output_path):
     ax.legend()
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig(output_path, dpi=120)
-    plt.close(fig)
+    if output_path:
+        fig.savefig(output_path, dpi=120)
+    return fig

@@ -22,8 +22,11 @@ def _bar_color(value):
     return "#d62728"
 
 
-def draw_resilience_card(resilience, output_path):
-    """Resilience bilesenlerini ve toplam skoru tek grafikte cizip kaydeder."""
+def draw_resilience_card(resilience, output_path=None):
+    """Resilience bilesenlerini ve toplam skoru tek grafikte cizer.
+
+    Matplotlib figurunu dondurur; output_path verilirse ayrica PNG kaydeder.
+    """
     components = resilience["components"]
     keys = list(components.keys())
     values = [components[key] for key in keys]
@@ -40,5 +43,6 @@ def draw_resilience_card(resilience, output_path):
     ax.grid(True, axis="x", alpha=0.3)
     ax.invert_yaxis()
     fig.tight_layout()
-    fig.savefig(output_path, dpi=120)
-    plt.close(fig)
+    if output_path:
+        fig.savefig(output_path, dpi=120)
+    return fig
