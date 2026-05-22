@@ -41,6 +41,11 @@ Temel pipeline'a ek olarak Streamlit arayüzü 11 sekmede şu analizleri sunar:
 - **İyileştirme önerisi** — dayanıklılığı en çok artıracak yeni yol bağlantısını
   bulma
 - **Bölge analizi** — ağı mekansal bölgelere ayırıp en kırılgan bölgeyi belirleme
+- **Afet senaryosu** — deprem / sel / bölgesel toplu kapanma simülasyonu
+- **Çöküş animasyonu** — kademeli saldırının adım adım GIF görselleştirmesi
+- **Topolojik sadeleştirme** — yol grafiğini farklı detay seviyelerinde
+  genelleştirme (harita genelleştirme)
+- **Karşılaştırmalı analiz** — iki yol ağının resilience metrikleriyle kıyası
 - **İnteraktif graph** — sürükle/yakınlaştır, hover ile kavşak detayları
 - **Demo senaryo** — tek tıkla otomatik sunum senaryosu
 
