@@ -36,6 +36,8 @@ nedeniyle depoya dahil değildir; yerel olarak ilgili klasörlere yerleştirilme
 
 ## Kullanım
 
+### Komut satırı — tam pipeline
+
 ```bash
 # Uydu görüntüsünden (model ile)
 python main.py data/train/100034_sat.jpg
@@ -44,7 +46,18 @@ python main.py data/train/100034_sat.jpg
 python main.py data/train/100034_mask.png --mask
 ```
 
-Çıktılar `outputs/` altında üretilir: yol maskesi, skeleton ve graph overlay.
+8 adımlık pipeline çıktıları `outputs/` altında üretilir: yol maskesi, skeleton,
+graph overlay, kritiklik ısı haritası, dayanıklılık eğrisi, resilience kartı,
+JSON metrik raporları ve derlenmiş tek dosyalık PDF rapor.
+
+### İnteraktif demo — Streamlit
+
+```bash
+streamlit run app.py
+```
+
+Tarayıcı arayüzünden görüntü/maske yüklenir veya hazır örnek veri seçilir; tüm
+analiz sonuçları sekmeler halinde görüntülenir.
 
 ## Proje Yapısı
 
@@ -52,16 +65,19 @@ python main.py data/train/100034_mask.png --mask
 src/
   inference/      D-LinkNet modeli ve yol maskesi çıkarımı
   topology/       Skeletonization ve skeleton→graph dönüşümü
-  analytics/      Graph metrikleri, kritiklik ve dayanıklılık analizi
-  visualization/  Graph overlay ve etki haritaları
-  reporting/      JSON / HTML raporlama
+  analytics/      Graph metrikleri, kritiklik ve resilience skoru
+  simulation/     Kapanma ve kademeli saldırı simülasyonu
+  visualization/  Graph overlay, etki haritaları ve grafikler
+  reporting/      Analiz sonuçlarının PDF rapora derlenmesi
+app.py            Streamlit demo arayüzü
+main.py           Uçtan uca komut satırı pipeline
 ```
 
 ## Geliştirme Durumu
 
 - [x] Faz 1 — Core Pipeline (görüntü → maske → skeleton → graph)
-- [ ] Faz 2 — Graph Intelligence (kritik node/edge analizi)
-- [ ] Faz 3 — Simulation Engine (kapanma simülasyonu, A-B rota etkisi)
-- [ ] Faz 4 — Resilience Analysis (random vs targeted, dayanıklılık skoru)
-- [ ] Faz 5 — Streamlit arayüzü
-- [ ] Faz 6 — Raporlama ve sunum
+- [x] Faz 2 — Graph Intelligence (kritik node/edge analizi, worst-case)
+- [x] Faz 3 — Simulation Engine (kapanma simülasyonu, kasıtlı vs rastsal saldırı)
+- [x] Faz 4 — Resilience Analysis (metrikleri tek dayanıklılık skoruna toplama)
+- [x] Faz 5 — Streamlit arayüzü
+- [x] Faz 6 — Raporlama ve sunum (PDF)
