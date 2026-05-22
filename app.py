@@ -32,6 +32,7 @@ from src.simulation.disaster import earthquake_zone, flood_zone, regional_zone
 from src.topology.graph_builder import basic_counts, build_graph
 from src.topology.skeletonizer import mask_to_skeleton
 from src.visualization.closure_overlay import draw_closure_overlay
+from src.visualization.collapse_animation import build_collapse_gif
 from src.visualization.criticality_overlay import draw_criticality_overlay
 from src.visualization.degradation_plot import draw_degradation_plot
 from src.visualization.graph_overlay import draw_graph_overlay
@@ -587,6 +588,34 @@ def render_comparison_tab(result, cfg):
     col_b.image(to_rgb(second["graph_overlay"]), use_container_width=True)
 
 
+def render_collapse_tab(result):
+    graph = result["graph"]
+    st.write("Kademeli kasitli saldiri animasyonu: en kritik kavsaklar sirayla "
+             "kaldirilirken agin adim adim parcalanisi GIF olarak uretilir.")
+
+    node_count = graph.number_of_nodes()
+    if node_count < 3:
+        st.info("Animasyon icin grafikte en az 3 kavsak gerekir.")
+        return
+
+    max_steps = st.slider("Kac kavsak kaldirilsin", 3,
+                          min(30, node_count), min(12, node_count))
+    if st.button("Animasyonu olustur", type="primary"):
+        order = sorted(graph.nodes(),
+                       key=lambda n: graph.nodes[n].get("criticality", 0.0),
+                       reverse=True)
+        with st.spinner("GIF olusturuluyor ..."):
+            st.session_state["collapse_gif"] = build_collapse_gif(
+                result["source"], graph, order, max_steps=max_steps)
+
+    gif = st.session_state.get("collapse_gif")
+    if gif is None:
+        st.info("Animasyon icin yukaridaki butona basin.")
+        return
+    st.image(gif, caption="En kritik kavsaklar sirayla kaldiriliyor",
+             use_container_width=True)
+
+
 def render_disaster_tab(result):
     graph = result["graph"]
     nodes = sorted(graph.nodes())
@@ -720,6 +749,7 @@ def main():
                 st.session_state.pop("improvement", None)
                 st.session_state.pop("regions", None)
                 st.session_state.pop("comparison", None)
+                st.session_state.pop("collapse_gif", None)
             except Exception as exc:
                 st.session_state.pop("result", None)
                 st.error(f"Hata: {exc}")
@@ -730,12 +760,12 @@ def main():
         return
 
     (tab_demo, tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
-     tab_route, tab_disaster, tab_improve, tab_regions, tab_simplify,
-     tab_compare, tab_interactive) = st.tabs(
+     tab_route, tab_disaster, tab_collapse, tab_improve, tab_regions,
+     tab_simplify, tab_compare, tab_interactive) = st.tabs(
         ["Demo Senaryo", "Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
          "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)",
-         "A-B Rota", "Afet Senaryosu", "Iyilestirme", "Bolge Analizi",
-         "Sadelestirme", "Karsilastirma", "Interaktif Graph"])
+         "A-B Rota", "Afet Senaryosu", "Cokus Animasyonu", "Iyilestirme",
+         "Bolge Analizi", "Sadelestirme", "Karsilastirma", "Interaktif Graph"])
     with tab_demo:
         render_demo_tab(result)
     with tab_input:
@@ -754,6 +784,8 @@ def main():
         render_route_tab(result)
     with tab_disaster:
         render_disaster_tab(result)
+    with tab_collapse:
+        render_collapse_tab(result)
     with tab_improve:
         render_improvement_tab(result, cfg)
     with tab_regions:
