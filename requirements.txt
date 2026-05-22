@@ -6,9 +6,7 @@ scikit-image
 networkx
 sknw
 matplotlib
-pandas
 pyyaml
 streamlit
 pyvis
-streamlit-agraph
 reportlab

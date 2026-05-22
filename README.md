@@ -25,6 +25,25 @@ Uydu/Drone Görüntüsü
   → Rapor / Demo Arayüzü
 ```
 
+## Gelişmiş Analiz Özellikleri
+
+Temel pipeline'a ek olarak Streamlit arayüzü 11 sekmede şu analizleri sunar:
+
+- **Kritiklik & açıklama** — betweenness, kesim noktası, köprü tespiti; her kritik
+  kavşak için "neden kritik?" açıklaması
+- **Kapanma simülasyonu** — rastsal / statik kasıtlı / adaptif saldırı dayanıklılık
+  eğrileri
+- **What-if** — seçilen kavşak/yolu kapatıp ağ etkisini (izolasyon, önce/sonra)
+  anlık görme
+- **A-B rota etkisi** — bir kapanmanın iki nokta arası rotayı ne kadar uzattığı
+  veya kopardığı
+- **Resilience skoru** — beş metriği tek 0-100 nota toplama
+- **İyileştirme önerisi** — dayanıklılığı en çok artıracak yeni yol bağlantısını
+  bulma
+- **Bölge analizi** — ağı mekansal bölgelere ayırıp en kırılgan bölgeyi belirleme
+- **İnteraktif graph** — sürükle/yakınlaştır, hover ile kavşak detayları
+- **Demo senaryo** — tek tıkla otomatik sunum senaryosu
+
 ## Kurulum
 
 ```bash
@@ -65,11 +84,11 @@ analiz sonuçları sekmeler halinde görüntülenir.
 src/
   inference/      D-LinkNet modeli ve yol maskesi çıkarımı
   topology/       Skeletonization ve skeleton→graph dönüşümü
-  analytics/      Graph metrikleri, kritiklik ve resilience skoru
-  simulation/     Kapanma ve kademeli saldırı simülasyonu
+  analytics/      Kritiklik, resilience, açıklama, rota, iyileştirme, bölge analizi
+  simulation/     Kapanma etki motoru ve kademeli saldırı simülasyonu
   visualization/  Graph overlay, etki haritaları ve grafikler
   reporting/      Analiz sonuçlarının PDF rapora derlenmesi
-app.py            Streamlit demo arayüzü
+app.py            Streamlit demo arayüzü (11 sekme)
 main.py           Uçtan uca komut satırı pipeline
 ```
 
