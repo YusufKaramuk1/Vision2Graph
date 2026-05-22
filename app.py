@@ -12,7 +12,9 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import streamlit as st
+import streamlit.components.v1 as components
 import yaml
+from pyvis.network import Network
 
 from src.analytics.criticality import analyze
 from src.analytics.explainability import explain_critical_nodes
@@ -428,6 +430,52 @@ def render_improvement_tab(result, cfg):
              use_container_width=True)
 
 
+def _heat_hex(value):
+    """0-1 kritiklik skorunu yesil->sari->kirmizi hex renge cevirir."""
+    value = max(0.0, min(1.0, value))
+    if value < 0.5:
+        red, green = int(510 * value), 200
+    else:
+        red, green = 255, int(200 * (1.0 - (value - 0.5) / 0.5))
+    return f"#{red:02x}{green:02x}30"
+
+
+def render_interactive_tab(result):
+    graph = result["graph"]
+    st.write("Tiklanabilir yol grafigi - bir kavsagin uzerine gelince ID, "
+             "kritiklik, derece ve betweenness degerleri balonda gorunur. "
+             "Renk ve boyut kritikligi yansitir (yesil dusuk, kirmizi yuksek). "
+             "Grafik surukle/yakinlastir ile gezilebilir.")
+
+    network = Network(height="600px", width="100%", bgcolor="#0e1117",
+                      font_color="#fafafa", cdn_resources="in_line")
+    network.toggle_physics(True)
+    for node, data in graph.nodes(data=True):
+        criticality = data.get("criticality", 0.0)
+        tooltip = (f"Node {node} | kritiklik {round(criticality, 3)} | "
+                   f"derece {graph.degree(node)} | "
+                   f"betweenness {round(data.get('betweenness', 0.0), 3)}")
+        if data.get("is_articulation"):
+            tooltip += " | KESIM NOKTASI"
+        network.add_node(int(node), label=str(node), title=tooltip,
+                         color=_heat_hex(criticality),
+                         size=10 + criticality * 22)
+    for u, v, data in graph.edges(data=True):
+        network.add_edge(int(u), int(v),
+                         color="#d62728" if data.get("is_bridge") else "#888888")
+    components.html(network.generate_html(), height=620)
+
+    st.subheader("Kavsak detayi")
+    node = st.selectbox("Incelenecek kavsak", sorted(graph.nodes()))
+    data = graph.nodes[node]
+    cols = st.columns(4)
+    cols[0].metric("Kritiklik", round(data.get("criticality", 0.0), 3))
+    cols[1].metric("Derece", graph.degree(node))
+    cols[2].metric("Betweenness", round(data.get("betweenness", 0.0), 3))
+    cols[3].metric("Kesim noktasi",
+                   "Evet" if data.get("is_articulation") else "Hayir")
+
+
 def main():
     st.set_page_config(page_title="Vision2Graph", layout="wide")
     cfg = load_config()
@@ -489,10 +537,10 @@ def main():
         return
 
     (tab_demo, tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
-     tab_route, tab_improve) = st.tabs(
+     tab_route, tab_improve, tab_interactive) = st.tabs(
         ["Demo Senaryo", "Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
          "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)",
-         "A-B Rota", "Iyilestirme"])
+         "A-B Rota", "Iyilestirme", "Interaktif Graph"])
     with tab_demo:
         render_demo_tab(result)
     with tab_input:
@@ -511,6 +559,8 @@ def main():
         render_route_tab(result)
     with tab_improve:
         render_improvement_tab(result, cfg)
+    with tab_interactive:
+        render_interactive_tab(result)
 
 
 if __name__ == "__main__":
