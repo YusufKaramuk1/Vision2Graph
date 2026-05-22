@@ -18,8 +18,10 @@ from src.analytics.resilience import resilience_score
 from src.inference.infer_road_mask import (load_model, predict_mask,
                                            resolve_device)
 from src.simulation.attack import simulate
+from src.simulation.closure import apply_closure, closure_impact
 from src.topology.graph_builder import basic_counts, build_graph
 from src.topology.skeletonizer import mask_to_skeleton
+from src.visualization.closure_overlay import draw_closure_overlay
 from src.visualization.criticality_overlay import draw_criticality_overlay
 from src.visualization.degradation_plot import draw_degradation_plot
 from src.visualization.graph_overlay import draw_graph_overlay
@@ -87,6 +89,7 @@ def run_pipeline(file_bytes, is_mask, cfg):
     graph = build_graph(skeleton, cfg["graph"]["spur_length_threshold"],
                         cfg["graph"]["min_component_length"])
     result["counts"] = basic_counts(graph)
+    result["graph"] = graph  # what-if sekmesi grafik uzerinde calisir
     result["graph_overlay"] = draw_graph_overlay(base, graph)
 
     # analyze() kritiklik ozniteliklerini graph'a yazar; sonraki adimlar buna dayanir.
@@ -155,6 +158,74 @@ def render_resilience_tab(result):
         f"{key}={value}" for key, value in resilience["weights"].items()))
 
 
+def render_whatif_tab(result, cfg):
+    graph = result["graph"]
+    st.write("Kapatilacak kavsak/yollari secin; sistem agi yeniden analiz eder "
+             "ve kapanmanin etkisini gosterir.")
+
+    col1, col2 = st.columns(2)
+    closed_nodes = col1.multiselect("Kapatilacak kavsaklar (node)",
+                                    sorted(graph.nodes()))
+    edge_options = sorted({tuple(sorted(edge)) for edge in graph.edges()})
+    closed_edges = col2.multiselect(
+        "Kapatilacak yollar (kenar)", edge_options,
+        format_func=lambda edge: f"{edge[0]} - {edge[1]}")
+
+    if not closed_nodes and not closed_edges:
+        st.info("Etki gormek icin en az bir kavsak veya yol secin.")
+        return
+
+    impact = closure_impact(graph, closed_nodes, closed_edges)
+    before, after = impact["before"], impact["after"]
+
+    st.subheader("Etki ozeti")
+    cols = st.columns(4)
+    cols[0].metric("Bilesen artisi", f"+{impact['component_increase']}")
+    cols[1].metric("Verim kaybi", f"%{impact['efficiency_loss_pct']}")
+    cols[2].metric("Izole kavsak", impact["isolated_nodes"])
+    cols[3].metric("Kopan ag orani", f"%{impact['isolation_ratio_pct']}")
+    if impact["isolated_nodes"]:
+        st.warning(
+            f"Bu kapanma {impact['isolated_nodes']} kavsagi ve "
+            f"{impact['isolated_length']} px yolu (yol agininin "
+            f"%{impact['isolation_ratio_pct']}'ini) ana agdan koparir.")
+
+    st.subheader("Once / Sonra")
+    before_col, after_col = st.columns(2)
+    before_col.caption("KAPANMA ONCESI")
+    before_col.metric("Bilesen sayisi", before["components"])
+    before_col.metric("En buyuk bilesen orani", before["lcr"])
+    before_col.metric("Toplam yol (px)", before["total_length"])
+    after_col.caption("KAPANMA SONRASI")
+    after_col.metric("Bilesen sayisi", after["components"],
+                     delta=after["components"] - before["components"],
+                     delta_color="inverse")
+    after_col.metric("En buyuk bilesen orani", after["lcr"],
+                     delta=round(after["lcr"] - before["lcr"], 4))
+    after_col.metric("Toplam yol (px)", after["total_length"],
+                     delta=round(after["total_length"] - before["total_length"], 1))
+
+    st.subheader("Resilience skoru")
+    if st.checkbox("Kapanma sonrasi resilience skorunu hesapla", value=True):
+        with st.spinner("Ag yeniden degerlendiriliyor ..."):
+            damaged = apply_closure(graph, closed_nodes, closed_edges)
+            new_resilience = resilience_score(damaged, analyze(damaged, cfg),
+                                              simulate(damaged, cfg), cfg)
+        original = result["resilience"]
+        res_col1, res_col2 = st.columns(2)
+        res_col1.metric("Kapanma oncesi", f"{original['score']} / 100")
+        res_col2.metric("Kapanma sonrasi", f"{new_resilience['score']} / 100",
+                        delta=round(new_resilience["score"] - original["score"], 1))
+
+    st.subheader("Gorsel")
+    overlay = draw_closure_overlay(result["source"], graph,
+                                   closed_nodes, impact["isolated_node_list"])
+    st.image(to_rgb(overlay),
+             caption="Siyah X: kapatilan kavsak  |  kirmizi: ana agdan kopan "
+                     "yol/kavsak  |  gri: ayakta kalan ag",
+             use_container_width=True)
+
+
 def main():
     st.set_page_config(page_title="Vision2Graph", layout="wide")
     cfg = load_config()
@@ -203,9 +274,9 @@ def main():
         st.info("Soldan bir goruntu/maske yukleyip 'Analizi calistir' deyin.")
         return
 
-    tab_input, tab_graph, tab_crit, tab_sim, tab_res = st.tabs(
+    tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif = st.tabs(
         ["Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
-         "Simulasyon (Faz 3)", "Resilience (Faz 4)"])
+         "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)"])
     with tab_input:
         render_input_tab(result)
     with tab_graph:
@@ -216,6 +287,8 @@ def main():
         render_simulation_tab(result)
     with tab_res:
         render_resilience_tab(result)
+    with tab_whatif:
+        render_whatif_tab(result, cfg)
 
 
 if __name__ == "__main__":

@@ -91,6 +91,7 @@ def closure_impact(graph, closed_nodes=None, closed_edges=None):
         "component_increase": after["components"] - before["components"],
         "efficiency_loss_pct": round(eff_loss, 2),
         "isolated_nodes": len(newly_isolated),
+        "isolated_node_list": sorted(int(n) for n in newly_isolated),
         "isolated_length": round(isolated_length, 1),
         "isolation_ratio_pct": round(isolation_ratio, 2),
     }
