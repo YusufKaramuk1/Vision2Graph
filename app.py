@@ -156,12 +156,14 @@ def render_simulation_tab(result):
     fig = draw_degradation_plot(simulation)
     st.pyplot(fig)
     plt.close(fig)
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Kasitli saldiri R", simulation["targeted"]["robustness_index"])
-    col2.metric("Rastsal ariza R", simulation["random"]["robustness_index"])
-    col3.metric("Kirilganlik farki", simulation["fragility_gap"])
-    st.caption("R = LCR egrisi altindaki alan (0-1). Dusuk kasitli-R, agin "
-               "oncelikli kavsak kayiplarina kirilgan oldugunu gosterir.")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Rastsal ariza R", simulation["random"]["robustness_index"])
+    col2.metric("Kasitli statik R", simulation["targeted"]["robustness_index"])
+    col3.metric("Kasitli adaptif R", simulation["adaptive"]["robustness_index"])
+    col4.metric("Kirilganlik farki", simulation["fragility_gap"])
+    st.caption("R = LCR egrisi altindaki alan (0-1). Adaptif saldiri her adimda "
+               "kritikligi yeniden hesaplar; genelde en dusuk R'yi (en sert "
+               "cokusu) bu egri verir.")
 
 
 def render_resilience_tab(result):

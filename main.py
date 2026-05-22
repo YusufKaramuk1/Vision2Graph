@@ -144,8 +144,9 @@ def print_analysis(analysis):
 def print_simulation(simulation):
     """Faz 3 kapanma simulasyonu sonucunu konsola ozetler."""
     print("\n=== Kapanma Simulasyonu (Faz 3) ===")
-    print(f"  Dayaniklilik indeksi  -> kasitli : {simulation['targeted']['robustness_index']}")
-    print(f"                           rastsal : {simulation['random']['robustness_index']}")
+    print(f"  Dayaniklilik indeksi  -> rastsal        : {simulation['random']['robustness_index']}")
+    print(f"                           kasitli statik : {simulation['targeted']['robustness_index']}")
+    print(f"                           kasitli adaptif: {simulation['adaptive']['robustness_index']}")
     print(f"  Kirilganlik farki (fragility_gap): {simulation['fragility_gap']}")
 
 

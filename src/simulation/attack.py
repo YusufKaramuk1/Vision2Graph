@@ -1,11 +1,13 @@
 """Kademeli saldiri simulasyonu: ag node kaybettikce nasil cokegidigi.
 
-Iki strateji karsilastirilir:
-  - targeted: en kritik node'lar once kaldirilir (kasitli saldiri / oncelikli ariza)
+Uc strateji karsilastirilir:
   - random:   node'lar rastgele kaldirilir (dogal/rastsal ariza)
+  - targeted: kritiklik siralamasi BIR KEZ hesaplanir, sabit sirayla kaldirilir
+  - adaptive: her node kaldirildiktan sonra kritiklik YENIDEN hesaplanir
 
-Saglam bir ag rastsal arizaya dayaniklidir ama kasitli saldiriya kirilgandir;
-iki egri arasindaki fark agin kirilganlik profilini ortaya koyar.
+Saglam bir ag rastsal arizaya dayaniklidir ama kasitli saldiriya kirilgandir.
+Adaptif saldiri, ag her degistiginde yeni zayifligi hedefledigi icin en
+gercekci ve en sert kirilganlik testidir.
 """
 import random
 
@@ -68,6 +70,33 @@ def random_attack(graph, max_fraction=0.5, runs=5):
     return averaged
 
 
+def adaptive_attack(graph, max_fraction=0.5):
+    """Her adimda kritiklik yeniden hesaplanan kasitli saldiri.
+
+    Statik targeted saldiri sabit bir baslangic siralamasi kullanir; adaptif
+    saldiri her kaldirmadan sonra grafigin yeni halinde en kritik node'u bulur.
+    Bu, ag bozuldukca kayan zayif noktayi takip ettigi icin daha sert bir testtir.
+    """
+    total = graph.number_of_nodes()
+    limit = int(total * max_fraction)
+    working = graph.copy()
+
+    curve = [{"removed": 0, "fraction": 0.0, **network_state(working)}]
+    for index in range(1, limit + 1):
+        if working.number_of_nodes() == 0:
+            break
+        annotate_centrality(working)
+        annotate_vulnerability(working)
+        scores = node_criticality(working)
+        if not scores:
+            break
+        working.remove_node(max(scores, key=scores.get))
+        curve.append({"removed": index,
+                      "fraction": round(index / total, 4),
+                      **network_state(working)})
+    return curve
+
+
 def robustness_index(curve):
     """LCR egrisi altindaki normalize alan (0-1): yuksek = dayanikli."""
     if len(curve) < 2:
@@ -90,12 +119,15 @@ def simulate(graph, config=None):
 
     targeted = progressive_attack(graph, "targeted", max_fraction)
     random_curve = random_attack(graph, max_fraction, random_runs)
+    adaptive = adaptive_attack(graph, max_fraction)
     targeted_r = robustness_index(targeted)
     random_r = robustness_index(random_curve)
+    adaptive_r = robustness_index(adaptive)
 
     return {
         "max_fraction": max_fraction,
         "targeted": {"curve": targeted, "robustness_index": targeted_r},
+        "adaptive": {"curve": adaptive, "robustness_index": adaptive_r},
         "random": {"curve": random_curve, "robustness_index": random_r},
         "fragility_gap": round(random_r - targeted_r, 4),
     }
