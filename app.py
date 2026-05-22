@@ -523,6 +523,70 @@ def render_regions_tab(result, cfg):
              use_container_width=True)
 
 
+def _comparison_summary(res):
+    """Bir analiz sonucundan karsilastirma metriklerini cikarir."""
+    return {
+        "Resilience skoru": res["resilience"]["score"],
+        "Sinif": res["resilience"]["grade"],
+        "Kavsak sayisi": res["counts"]["node_count"],
+        "Yol sayisi": res["counts"]["edge_count"],
+        "Bilesen sayisi": res["counts"]["component_count"],
+        "Articulation point": res["analysis"]["articulation_count"],
+        "Bridge edge": res["analysis"]["bridge_count"],
+        "Kasitli saldiri R": res["simulation"]["targeted"]["robustness_index"],
+        "Rastsal ariza R": res["simulation"]["random"]["robustness_index"],
+    }
+
+
+def render_comparison_tab(result, cfg):
+    st.write("Mevcut analizi baska bir ornek yol agiyla karsilastirin.")
+    samples = list_samples(cfg["paths"]["data_dir"])
+    if not samples:
+        st.info("Karsilastirma icin ornek veri bulunamadi.")
+        return
+
+    choice = st.selectbox("Karsilastirilacak ikinci ornek", samples)
+    if st.button("Karsilastir", type="primary"):
+        with st.spinner(f"{choice} analiz ediliyor ..."):
+            try:
+                data = (ROOT / cfg["paths"]["data_dir"] / choice).read_bytes()
+                st.session_state["comparison"] = run_pipeline(
+                    data, "_mask" in choice, cfg)
+                st.session_state["comparison_name"] = choice
+            except Exception as exc:
+                st.session_state.pop("comparison", None)
+                st.error(f"Hata: {exc}")
+
+    second = st.session_state.get("comparison")
+    if second is None:
+        st.info("Bir ikinci ornek secip 'Karsilastir' butonuna basin.")
+        return
+
+    name_b = st.session_state.get("comparison_name", "Ikinci")
+    summary_a = _comparison_summary(result)
+    summary_b = _comparison_summary(second)
+
+    st.subheader("Karsilastirma tablosu")
+    st.dataframe(
+        [{"Metrik": key, "A (mevcut)": summary_a[key],
+          f"B ({name_b})": summary_b[key]} for key in summary_a],
+        use_container_width=True)
+
+    score_a, score_b = summary_a["Resilience skoru"], summary_b["Resilience skoru"]
+    if abs(score_a - score_b) < 1.0:
+        st.info("Iki yol agi benzer dayaniklilik seviyesindedir.")
+    else:
+        stronger = "A (mevcut)" if score_a > score_b else f"B ({name_b})"
+        st.success(f"{stronger} daha dayanikli - resilience skoru "
+                   f"{max(score_a, score_b)} / {min(score_a, score_b)}.")
+
+    col_a, col_b = st.columns(2)
+    col_a.caption("A (mevcut)")
+    col_a.image(to_rgb(result["graph_overlay"]), use_container_width=True)
+    col_b.caption(f"B ({name_b})")
+    col_b.image(to_rgb(second["graph_overlay"]), use_container_width=True)
+
+
 def render_disaster_tab(result):
     graph = result["graph"]
     nodes = sorted(graph.nodes())
@@ -655,6 +719,7 @@ def main():
                 # yeni analizde eski on-demand sonuclari temizle
                 st.session_state.pop("improvement", None)
                 st.session_state.pop("regions", None)
+                st.session_state.pop("comparison", None)
             except Exception as exc:
                 st.session_state.pop("result", None)
                 st.error(f"Hata: {exc}")
@@ -666,11 +731,11 @@ def main():
 
     (tab_demo, tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
      tab_route, tab_disaster, tab_improve, tab_regions, tab_simplify,
-     tab_interactive) = st.tabs(
+     tab_compare, tab_interactive) = st.tabs(
         ["Demo Senaryo", "Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
          "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)",
          "A-B Rota", "Afet Senaryosu", "Iyilestirme", "Bolge Analizi",
-         "Sadelestirme", "Interaktif Graph"])
+         "Sadelestirme", "Karsilastirma", "Interaktif Graph"])
     with tab_demo:
         render_demo_tab(result)
     with tab_input:
@@ -695,6 +760,8 @@ def main():
         render_regions_tab(result, cfg)
     with tab_simplify:
         render_simplification_tab(result)
+    with tab_compare:
+        render_comparison_tab(result, cfg)
     with tab_interactive:
         render_interactive_tab(result)
 
