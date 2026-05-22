@@ -16,6 +16,7 @@ import yaml
 
 from src.analytics.criticality import analyze
 from src.analytics.explainability import explain_critical_nodes
+from src.analytics.improvement import suggest_improvements
 from src.analytics.resilience import resilience_score
 from src.analytics.routing import route_impact
 from src.inference.infer_road_mask import (load_model, predict_mask,
@@ -28,6 +29,7 @@ from src.visualization.closure_overlay import draw_closure_overlay
 from src.visualization.criticality_overlay import draw_criticality_overlay
 from src.visualization.degradation_plot import draw_degradation_plot
 from src.visualization.graph_overlay import draw_graph_overlay
+from src.visualization.improvement_overlay import draw_improvement_overlay
 from src.visualization.resilience_card import draw_resilience_card
 from src.visualization.route_overlay import draw_route_overlay
 
@@ -381,6 +383,45 @@ def render_demo_tab(result):
                      f"ag icin tekil bir hata noktasidir.")
 
 
+def render_improvement_tab(result, cfg):
+    graph = result["graph"]
+    st.write("Sistem, aga eklenebilecek yeni yol baglantilarini dener ve "
+             "dayanikliligi en cok artiracak olani onerir.")
+
+    if st.button("Iyilestirme onerisi hesapla", type="primary"):
+        with st.spinner("Aday baglantilar degerlendiriliyor ..."):
+            st.session_state["improvement"] = suggest_improvements(graph, cfg)
+
+    suggestion = st.session_state.get("improvement")
+    if suggestion is None:
+        st.info("Oneri uretmek icin yukaridaki butona basin.")
+        return
+    if not suggestion["suggestions"]:
+        st.warning("Denenebilecek uygun yeni baglanti adayi bulunamadi.")
+        return
+
+    st.metric("Mevcut resilience skoru",
+              f"{suggestion['base_score']} / 100 ({suggestion['base_grade']})")
+    best = suggestion["suggestions"][0]
+    if best["gain"] > 0:
+        st.success(f"Onerilen baglanti: Node {best['edge'][0]} - Node "
+                   f"{best['edge'][1]}. Eklenirse resilience skoru "
+                   f"{suggestion['base_score']} -> {best['score_after']} "
+                   f"(+{best['gain']} puan).")
+    else:
+        st.info("Denenen baglantilar skoru anlamli sekilde artirmadi; ag "
+                "mevcut haliyle bu mudahalelere kapali.")
+
+    st.subheader("Aday baglantilar")
+    st.dataframe(suggestion["suggestions"], use_container_width=True)
+
+    st.subheader("Onerilen baglanti")
+    st.image(to_rgb(draw_improvement_overlay(result["source"], graph,
+                                             best["edge"])),
+             caption="Yesil: aga onerilen yeni yol baglantisi",
+             use_container_width=True)
+
+
 def main():
     st.set_page_config(page_title="Vision2Graph", layout="wide")
     cfg = load_config()
@@ -431,6 +472,7 @@ def main():
         with st.spinner("Pipeline calisiyor ..."):
             try:
                 st.session_state["result"] = run_pipeline(file_bytes, is_mask, cfg)
+                st.session_state.pop("improvement", None)  # eski oneriyi temizle
             except Exception as exc:
                 st.session_state.pop("result", None)
                 st.error(f"Hata: {exc}")
@@ -441,10 +483,10 @@ def main():
         return
 
     (tab_demo, tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
-     tab_route) = st.tabs(
+     tab_route, tab_improve) = st.tabs(
         ["Demo Senaryo", "Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
          "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)",
-         "A-B Rota"])
+         "A-B Rota", "Iyilestirme"])
     with tab_demo:
         render_demo_tab(result)
     with tab_input:
@@ -461,6 +503,8 @@ def main():
         render_whatif_tab(result, cfg)
     with tab_route:
         render_route_tab(result)
+    with tab_improve:
+        render_improvement_tab(result, cfg)
 
 
 if __name__ == "__main__":
