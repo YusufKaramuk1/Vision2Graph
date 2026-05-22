@@ -15,6 +15,7 @@ import cv2
 import yaml
 
 from src.analytics.criticality import analyze
+from src.analytics.explainability import explain_critical_nodes
 from src.analytics.resilience import resilience_score
 from src.inference.infer_road_mask import (infer_from_image, load_mask_file,
                                            resolve_device)
@@ -74,6 +75,7 @@ def run(args):
 
     print("[5/8] Graph analizi (kritiklik + worst-case) ...")
     analysis = analyze(graph, cfg)
+    analysis["explanations"] = explain_critical_nodes(graph, analysis)
     crit_overlay = draw_criticality_overlay(base, graph)
     cv2.imwrite(str(output_dir / "graphs" / f"{name}_criticality.png"), crit_overlay)
     with open(output_dir / "reports" / f"{name}_analysis.json", "w",
@@ -121,6 +123,11 @@ def print_analysis(analysis):
     print("  En kritik node'lar:")
     for item in analysis["top_critical_nodes"]:
         print(f"    node {item['node']:>4}   skor={item['score']}")
+
+    if analysis.get("explanations"):
+        print("  Neden kritik:")
+        for item in analysis["explanations"]:
+            print(f"    - {item['explanation']}")
 
     worst = analysis["worst_case"]
     print(f"  Worst-case (baseline LCR={worst['baseline_lcr']}, "

@@ -14,6 +14,7 @@ import streamlit as st
 import yaml
 
 from src.analytics.criticality import analyze
+from src.analytics.explainability import explain_critical_nodes
 from src.analytics.resilience import resilience_score
 from src.inference.infer_road_mask import (load_model, predict_mask,
                                            resolve_device)
@@ -94,6 +95,8 @@ def run_pipeline(file_bytes, is_mask, cfg):
 
     # analyze() kritiklik ozniteliklerini graph'a yazar; sonraki adimlar buna dayanir.
     result["analysis"] = analyze(graph, cfg)
+    result["analysis"]["explanations"] = explain_critical_nodes(
+        graph, result["analysis"])
     result["criticality_overlay"] = draw_criticality_overlay(base, graph)
     result["simulation"] = simulate(graph, cfg)
     result["resilience"] = resilience_score(graph, result["analysis"],
@@ -129,6 +132,10 @@ def render_criticality_tab(result):
     col2.metric("Bridge edges", analysis["bridge_count"])
     st.subheader("En kritik node'lar")
     st.dataframe(analysis["top_critical_nodes"], use_container_width=True)
+    if analysis.get("explanations"):
+        st.subheader("Neden kritik?")
+        for item in analysis["explanations"]:
+            st.markdown(f"- {item['explanation']}")
     st.subheader("Worst-case: en kritik node'lar kapaninca")
     st.dataframe(analysis["worst_case"]["impacts"], use_container_width=True)
 
