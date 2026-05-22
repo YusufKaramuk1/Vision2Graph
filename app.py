@@ -19,6 +19,7 @@ from src.analytics.explainability import explain_critical_nodes
 from src.analytics.improvement import suggest_improvements
 from src.analytics.resilience import resilience_score
 from src.analytics.routing import route_impact
+from src.analytics.scale import format_length, meters_per_pixel
 from src.inference.infer_road_mask import (load_model, predict_mask,
                                            resolve_device)
 from src.simulation.attack import simulate
@@ -95,6 +96,7 @@ def run_pipeline(file_bytes, is_mask, cfg):
     graph = build_graph(skeleton, cfg["graph"]["spur_length_threshold"],
                         cfg["graph"]["min_component_length"])
     result["counts"] = basic_counts(graph)
+    result["mpp"] = meters_per_pixel(cfg)  # piksel -> metre olcegi
     result["graph"] = graph  # what-if sekmesi grafik uzerinde calisir
     result["graph_overlay"] = draw_graph_overlay(base, graph)
 
@@ -124,7 +126,9 @@ def render_graph_tab(result):
                use_container_width=True)
     counts = result["counts"]
     for col, (key, value) in zip(st.columns(len(counts)), counts.items()):
-        col.metric(key, value)
+        shown = (format_length(value, result["mpp"])
+                 if key == "total_length" else value)
+        col.metric(key, shown)
 
 
 def render_criticality_tab(result):
@@ -189,6 +193,7 @@ def render_whatif_tab(result, cfg):
 
     impact = closure_impact(graph, closed_nodes, closed_edges)
     before, after = impact["before"], impact["after"]
+    mpp = result["mpp"]
 
     st.subheader("Etki ozeti")
     cols = st.columns(4)
@@ -199,23 +204,22 @@ def render_whatif_tab(result, cfg):
     if impact["isolated_nodes"]:
         st.warning(
             f"Bu kapanma {impact['isolated_nodes']} kavsagi ve "
-            f"{impact['isolated_length']} px yolu (yol agininin "
-            f"%{impact['isolation_ratio_pct']}'ini) ana agdan koparir.")
+            f"{format_length(impact['isolated_length'], mpp)} yolu (yol "
+            f"agininin %{impact['isolation_ratio_pct']}'ini) ana agdan koparir.")
 
     st.subheader("Once / Sonra")
     before_col, after_col = st.columns(2)
     before_col.caption("KAPANMA ONCESI")
     before_col.metric("Bilesen sayisi", before["components"])
     before_col.metric("En buyuk bilesen orani", before["lcr"])
-    before_col.metric("Toplam yol (px)", before["total_length"])
+    before_col.metric("Toplam yol", format_length(before["total_length"], mpp))
     after_col.caption("KAPANMA SONRASI")
     after_col.metric("Bilesen sayisi", after["components"],
                      delta=after["components"] - before["components"],
                      delta_color="inverse")
     after_col.metric("En buyuk bilesen orani", after["lcr"],
                      delta=round(after["lcr"] - before["lcr"], 4))
-    after_col.metric("Toplam yol (px)", after["total_length"],
-                     delta=round(after["total_length"] - before["total_length"], 1))
+    after_col.metric("Toplam yol", format_length(after["total_length"], mpp))
 
     st.subheader("Resilience skoru")
     if st.checkbox("Kapanma sonrasi resilience skorunu hesapla", value=True):
@@ -268,13 +272,14 @@ def render_route_tab(result):
                    f"yol yok - bu iki kavsak agin farkli parcalarinda.")
         return
 
+    mpp = result["mpp"]
     st.subheader("Rota etkisi")
     cols = st.columns(4)
-    cols[0].metric("Kapanma oncesi rota", f"{impact['before_length']} px")
+    cols[0].metric("Kapanma oncesi rota",
+                   format_length(impact["before_length"], mpp))
     if impact["reachable_after"]:
-        cols[1].metric("Kapanma sonrasi rota", f"{impact['after_length']} px",
-                       delta=round(impact["after_length"] - impact["before_length"], 1),
-                       delta_color="inverse")
+        cols[1].metric("Kapanma sonrasi rota",
+                       format_length(impact["after_length"], mpp))
         cols[2].metric("Rota uzamasi", f"%{impact['extension_pct']}")
         cols[3].metric("Detour faktoru", impact["detour_after"] or "-")
     else:
@@ -357,10 +362,11 @@ def render_demo_tab(result):
                              closed_nodes=[critical])
         rcols = st.columns(3)
         rcols[0].metric("Onceki rota",
-                        f"{route['before_length']} px"
+                        format_length(route["before_length"], result["mpp"])
                         if route["reachable_before"] else "-")
         if route["reachable_after"]:
-            rcols[1].metric("Sonraki rota", f"{route['after_length']} px")
+            rcols[1].metric("Sonraki rota",
+                            format_length(route["after_length"], result["mpp"]))
             rcols[2].metric("Rota uzamasi", f"%{route['extension_pct']}")
         else:
             rcols[1].metric("Sonraki rota", "KESILDI")

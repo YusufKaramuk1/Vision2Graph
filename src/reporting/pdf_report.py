@@ -14,6 +14,8 @@ from reportlab.lib.units import cm
 from reportlab.platypus import (Image, Paragraph, SimpleDocTemplate, Spacer,
                                 Table, TableStyle)
 
+from src.analytics.scale import format_length
+
 _MARGIN = 2 * cm
 _PAGE_WIDTH = A4[0] - 2 * _MARGIN  # kenar bosluklari dusulmus kullanilabilir genislik
 
@@ -155,7 +157,8 @@ def _executive_summary(counts, analysis, simulation, resilience):
     return " ".join(part for part in parts if part)
 
 
-def build_pdf_report(output_dir, name, counts, analysis, simulation, resilience):
+def build_pdf_report(output_dir, name, counts, analysis, simulation, resilience,
+                     meters_per_pixel=None):
     """Faz 6 ana giris noktasi: kaydedilmis cikti ve metrikleri PDF'e derler.
 
     Pipeline'in onceki adimlarinin overlay/grafik PNG'lerini ve metrik
@@ -182,7 +185,11 @@ def build_pdf_report(output_dir, name, counts, analysis, simulation, resilience)
     story.append(_scaled_image(output_dir / "graphs" / f"{name}_graph.png", 11 * cm))
     story.append(Paragraph("Goruntuden cikarilan yol grafigi", styles["V2GCaption"]))
     story.append(Spacer(1, 6))
-    story.append(_pairs_table(list(counts.items())))
+    count_pairs = [
+        (key, format_length(value, meters_per_pixel) if key == "total_length"
+         else value)
+        for key, value in counts.items()]
+    story.append(_pairs_table(count_pairs))
 
     story.append(Paragraph("2. Kritiklik Analizi", styles["V2GSection"]))
     story.append(_scaled_image(

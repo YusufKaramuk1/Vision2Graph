@@ -17,6 +17,7 @@ import yaml
 from src.analytics.criticality import analyze
 from src.analytics.explainability import explain_critical_nodes
 from src.analytics.resilience import resilience_score
+from src.analytics.scale import format_length, meters_per_pixel
 from src.inference.infer_road_mask import (infer_from_image, load_mask_file,
                                            resolve_device)
 from src.reporting.pdf_report import build_pdf_report
@@ -99,13 +100,15 @@ def run(args):
         json.dump(resilience, f, indent=2, ensure_ascii=False)
 
     counts = basic_counts(graph)
+    mpp = meters_per_pixel(cfg)
     print("[8/8] PDF rapor olusturuluyor ...")
     report_path = build_pdf_report(output_dir, name, counts, analysis,
-                                   simulation, resilience)
+                                   simulation, resilience, mpp)
 
     print("\n=== Graph Ozeti ===")
     for key, value in counts.items():
-        print(f"  {key:18s}: {value}")
+        shown = format_length(value, mpp) if key == "total_length" else value
+        print(f"  {key:18s}: {shown}")
 
     print_analysis(analysis)
     print_simulation(simulation)

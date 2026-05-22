@@ -16,7 +16,8 @@ graph:
   min_component_length: 30    # toplam uzunlugu bu degerin altindaki bilesenleri at (piksel)
 
 scale:
-  meters_per_pixel: null      # bir sayi verilirse mesafeler metre cinsinden raporlanir
+  meters_per_pixel: 0.5       # DeepGlobe nominal cozunurlugu (~50 cm/piksel); yaklasik
+                              # null yapilirsa mesafeler piksel cinsinden raporlanir
 
 # Faz 2 - Graph Intelligence: kritiklik skoru bilesenleri ve agirliklari
 analytics:
