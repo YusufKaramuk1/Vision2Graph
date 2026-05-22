@@ -9,6 +9,7 @@ from pathlib import Path
 
 import cv2
 import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import streamlit as st
 import yaml
@@ -16,6 +17,7 @@ import yaml
 from src.analytics.criticality import analyze
 from src.analytics.explainability import explain_critical_nodes
 from src.analytics.resilience import resilience_score
+from src.analytics.routing import route_impact
 from src.inference.infer_road_mask import (load_model, predict_mask,
                                            resolve_device)
 from src.simulation.attack import simulate
@@ -27,6 +29,7 @@ from src.visualization.criticality_overlay import draw_criticality_overlay
 from src.visualization.degradation_plot import draw_degradation_plot
 from src.visualization.graph_overlay import draw_graph_overlay
 from src.visualization.resilience_card import draw_resilience_card
+from src.visualization.route_overlay import draw_route_overlay
 
 ROOT = Path(__file__).resolve().parent
 
@@ -233,6 +236,64 @@ def render_whatif_tab(result, cfg):
              use_container_width=True)
 
 
+def render_route_tab(result):
+    graph = result["graph"]
+    nodes = sorted(graph.nodes())
+    if len(nodes) < 2:
+        st.info("Rota analizi icin grafikte en az 2 kavsak gerekir.")
+        return
+
+    # varsayilan hedef: baslangicla ayni bilesendeki bir kavsak (rota garanti)
+    same_component = [n for n in nx.node_connected_component(graph, nodes[0])
+                      if n != nodes[0]]
+    default_target = same_component[-1] if same_component else nodes[-1]
+
+    col1, col2 = st.columns(2)
+    source = col1.selectbox("Baslangic kavsagi (A)", nodes, index=0)
+    target = col2.selectbox("Hedef kavsagi (B)", nodes,
+                            index=nodes.index(default_target))
+    if source == target:
+        st.info("Baslangic ve hedef ayni; farkli iki kavsak secin.")
+        return
+
+    closed_nodes = st.multiselect(
+        "Kapatilacak kavsaklar (senaryo - bos birakilabilir)",
+        [n for n in nodes if n not in (source, target)])
+
+    impact = route_impact(graph, source, target, closed_nodes)
+    if not impact["reachable_before"]:
+        st.warning(f"Kavsak {source} ile {target} arasinda kapanma olmadan da "
+                   f"yol yok - bu iki kavsak agin farkli parcalarinda.")
+        return
+
+    st.subheader("Rota etkisi")
+    cols = st.columns(4)
+    cols[0].metric("Kapanma oncesi rota", f"{impact['before_length']} px")
+    if impact["reachable_after"]:
+        cols[1].metric("Kapanma sonrasi rota", f"{impact['after_length']} px",
+                       delta=round(impact["after_length"] - impact["before_length"], 1),
+                       delta_color="inverse")
+        cols[2].metric("Rota uzamasi", f"%{impact['extension_pct']}")
+        cols[3].metric("Detour faktoru", impact["detour_after"] or "-")
+    else:
+        cols[1].metric("Kapanma sonrasi rota", "KESILDI")
+        cols[2].metric("Rota uzamasi", "sonsuz")
+        cols[3].metric("Detour faktoru", "-")
+        st.error(f"Bu kapanma {source}-{target} baglantisini tamamen koparir; "
+                 f"alternatif rota yoktur.")
+
+    if not closed_nodes:
+        st.caption("Henuz kapanma secilmedi - gosterilen, mevcut en kisa rotadir.")
+
+    st.subheader("Gorsel")
+    overlay = draw_route_overlay(result["source"], graph, impact["before_path"],
+                                 impact["after_path"], source, target)
+    st.image(to_rgb(overlay),
+             caption="Yesil: baslangic  |  kirmizi: hedef  |  mavi: kapanma "
+                     "oncesi rota  |  turuncu: kapanma sonrasi rota",
+             use_container_width=True)
+
+
 def main():
     st.set_page_config(page_title="Vision2Graph", layout="wide")
     cfg = load_config()
@@ -281,9 +342,11 @@ def main():
         st.info("Soldan bir goruntu/maske yukleyip 'Analizi calistir' deyin.")
         return
 
-    tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif = st.tabs(
+    (tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
+     tab_route) = st.tabs(
         ["Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
-         "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)"])
+         "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)",
+         "A-B Rota"])
     with tab_input:
         render_input_tab(result)
     with tab_graph:
@@ -296,6 +359,8 @@ def main():
         render_resilience_tab(result)
     with tab_whatif:
         render_whatif_tab(result, cfg)
+    with tab_route:
+        render_route_tab(result)
 
 
 if __name__ == "__main__":
