@@ -28,6 +28,7 @@ from src.inference.infer_road_mask import (load_model, predict_mask,
                                            resolve_device)
 from src.simulation.attack import simulate
 from src.simulation.closure import apply_closure, closure_impact
+from src.simulation.disaster import earthquake_zone, flood_zone, regional_zone
 from src.topology.graph_builder import basic_counts, build_graph
 from src.topology.skeletonizer import mask_to_skeleton
 from src.visualization.closure_overlay import draw_closure_overlay
@@ -522,6 +523,59 @@ def render_regions_tab(result, cfg):
              use_container_width=True)
 
 
+def render_disaster_tab(result):
+    graph = result["graph"]
+    nodes = sorted(graph.nodes())
+    st.write("Hazir afet senaryolari: secili bir alan toplu kapatilir ve yol "
+             "agininin nasil etkilendigi olculur. Gercek afet verisi olmadigi "
+             "icin bunlar mekansal varsayimlara dayali simulasyonlardir.")
+
+    kind = st.radio("Senaryo", ["Deprem", "Sel", "Bolgesel kapanma"],
+                    horizontal=True)
+    if kind == "Deprem":
+        epicenter = st.selectbox("Episantr kavsagi", nodes)
+        radius = st.slider("Etki yaricapi (piksel)", 20, 400, 120, 10)
+        closed = earthquake_zone(graph, epicenter, radius)
+    elif kind == "Sel":
+        level = st.slider("Su seviyesi (goruntunun alt yuzdesi)", 10, 80, 35, 5)
+        closed = flood_zone(graph, level / 100)
+    else:
+        region = st.radio("Bolge", ["Kuzeybati", "Kuzeydogu",
+                                    "Guneybati", "Guneydogu"], horizontal=True)
+        closed = regional_zone(graph, region)
+
+    if not closed:
+        st.info("Bu senaryo hicbir kavsagi kapsamiyor; parametreleri degistirin.")
+        return
+
+    impact = closure_impact(graph, closed_nodes=closed)
+    before, after = impact["before"], impact["after"]
+
+    st.subheader(f"Etki - {len(closed)} kavsak kapandi")
+    cols = st.columns(4)
+    cols[0].metric("Bilesen artisi", f"+{impact['component_increase']}")
+    cols[1].metric("Verim kaybi", f"%{impact['efficiency_loss_pct']}")
+    cols[2].metric("Izole kavsak", impact["isolated_nodes"])
+    cols[3].metric("Kopan ag orani", f"%{impact['isolation_ratio_pct']}")
+
+    before_col, after_col = st.columns(2)
+    before_col.caption("AFET ONCESI")
+    before_col.metric("Bilesen sayisi", before["components"])
+    before_col.metric("En buyuk bilesen orani", before["lcr"])
+    after_col.caption("AFET SONRASI")
+    after_col.metric("Bilesen sayisi", after["components"],
+                     delta=after["components"] - before["components"],
+                     delta_color="inverse")
+    after_col.metric("En buyuk bilesen orani", after["lcr"],
+                     delta=round(after["lcr"] - before["lcr"], 4))
+
+    st.image(to_rgb(draw_closure_overlay(result["source"], graph, closed,
+                                         impact["isolated_node_list"])),
+             caption="Magenta X: kapanan kavsaklar  |  kirmizi: ana agdan kopan "
+                     "kisim  |  gri: ayakta kalan ag",
+             use_container_width=True)
+
+
 def render_simplification_tab(result):
     graph = result["graph"]
     st.write("Yol grafigi farkli detay seviyelerinde sadelestirilir: dusuk "
@@ -611,12 +665,12 @@ def main():
         return
 
     (tab_demo, tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
-     tab_route, tab_improve, tab_regions, tab_simplify,
+     tab_route, tab_disaster, tab_improve, tab_regions, tab_simplify,
      tab_interactive) = st.tabs(
         ["Demo Senaryo", "Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
          "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)",
-         "A-B Rota", "Iyilestirme", "Bolge Analizi", "Sadelestirme",
-         "Interaktif Graph"])
+         "A-B Rota", "Afet Senaryosu", "Iyilestirme", "Bolge Analizi",
+         "Sadelestirme", "Interaktif Graph"])
     with tab_demo:
         render_demo_tab(result)
     with tab_input:
@@ -633,6 +687,8 @@ def main():
         render_whatif_tab(result, cfg)
     with tab_route:
         render_route_tab(result)
+    with tab_disaster:
+        render_disaster_tab(result)
     with tab_improve:
         render_improvement_tab(result, cfg)
     with tab_regions:
