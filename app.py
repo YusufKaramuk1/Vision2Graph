@@ -294,6 +294,93 @@ def render_route_tab(result):
              use_container_width=True)
 
 
+def _demo_route_endpoints(graph, critical):
+    """Demo icin, rotasi kritik node'dan gecen anlamli bir A-B cifti secer.
+
+    Kritik node bir kesim noktasiysa, onu cikarinca bilesen parcalara ayrilir;
+    farkli parcalardan birer node secince aralarindaki rota zorunlu olarak
+    kritik node'dan gecer - kapanmanin etkisi boylece net gorulur.
+    """
+    component = nx.node_connected_component(graph, critical)
+    pieces = sorted(nx.connected_components(graph.subgraph(component - {critical})),
+                    key=len, reverse=True)
+    if len(pieces) >= 2:
+        return max(pieces[0], key=graph.degree), max(pieces[1], key=graph.degree)
+    ordered = sorted(component)
+    return (ordered[0], ordered[-1]) if len(ordered) >= 2 else (None, None)
+
+
+def render_demo_tab(result):
+    graph = result["graph"]
+    analysis = result["analysis"]
+    resilience = result["resilience"]
+    st.write("Otomatik senaryo: sistem en kritik kavsagi bulur, kapatir ve "
+             "aga + ornek bir rotaya etkisini adim adim gosterir.")
+
+    if not analysis["top_critical_nodes"]:
+        st.warning("Grafik bu senaryo icin yetersiz.")
+        return
+    critical = analysis["top_critical_nodes"][0]["node"]
+
+    st.subheader("1. Agin genel durumu")
+    cols = st.columns(2)
+    cols[0].metric("Resilience skoru", f"{resilience['score']} / 100")
+    cols[1].metric("En kritik kavsak", f"Node {critical}")
+    st.markdown(f"**Ag sinifi:** {resilience['grade']} - {resilience['label']}")
+    explanation = next((item["explanation"]
+                        for item in analysis.get("explanations", [])
+                        if item["node"] == critical), "")
+    if explanation:
+        st.info(explanation)
+
+    st.subheader(f"2. Senaryo: Node {critical} kapaniyor")
+    impact = closure_impact(graph, [critical])
+    row1 = st.columns(2)
+    row1[0].metric("Bilesen artisi", f"+{impact['component_increase']}")
+    row1[1].metric("Verim kaybi", f"%{impact['efficiency_loss_pct']}")
+    row2 = st.columns(2)
+    row2[0].metric("Izole kavsak", impact["isolated_nodes"])
+    row2[1].metric("Kopan ag orani", f"%{impact['isolation_ratio_pct']}")
+    st.image(to_rgb(draw_closure_overlay(result["source"], graph, [critical],
+                                         impact["isolated_node_list"])),
+             caption="Magenta X: kapatilan kavsak  |  kirmizi: ana agdan kopan kisim",
+             use_container_width=True)
+
+    st.subheader("3. Ornek bir rotaya etkisi")
+    source_node, target_node = _demo_route_endpoints(graph, critical)
+    if source_node is None:
+        st.caption("Bu grafikte uygun ornek rota bulunamadi.")
+    else:
+        route = route_impact(graph, source_node, target_node,
+                             closed_nodes=[critical])
+        rcols = st.columns(3)
+        rcols[0].metric("Onceki rota",
+                        f"{route['before_length']} px"
+                        if route["reachable_before"] else "-")
+        if route["reachable_after"]:
+            rcols[1].metric("Sonraki rota", f"{route['after_length']} px")
+            rcols[2].metric("Rota uzamasi", f"%{route['extension_pct']}")
+        else:
+            rcols[1].metric("Sonraki rota", "KESILDI")
+            rcols[2].metric("Rota uzamasi", "sonsuz")
+        st.image(to_rgb(draw_route_overlay(result["source"], graph,
+                                           route["before_path"],
+                                           route["after_path"],
+                                           source_node, target_node)),
+                 caption=f"Node {source_node} -> Node {target_node} rotasi "
+                         f"(mavi: oncesi, turuncu: sonrasi)",
+                 use_container_width=True)
+        st.subheader("Sonuc")
+        if route["reachable_after"]:
+            st.success(f"Node {critical} kapandiginda ornek rota "
+                       f"%{route['extension_pct']} uzamakta, ag "
+                       f"'{resilience['label']}' seviyesinde kalmaktadir.")
+        else:
+            st.error(f"Node {critical} kapandiginda Node {source_node}-"
+                     f"{target_node} baglantisi tamamen kopmaktadir; bu kavsak "
+                     f"ag icin tekil bir hata noktasidir.")
+
+
 def main():
     st.set_page_config(page_title="Vision2Graph", layout="wide")
     cfg = load_config()
@@ -327,7 +414,18 @@ def main():
         run = st.button("Analizi calistir", type="primary",
                         use_container_width=True, disabled=file_bytes is None)
         st.divider()
+        demo = st.button("Hizli demo - ilk ornekle calistir",
+                         use_container_width=True)
         st.caption("Esikler ve skor agirliklari config.yaml uzerinden ayarlanir.")
+
+    if demo:
+        samples = list_samples(cfg["paths"]["data_dir"])
+        if samples:
+            file_bytes = (ROOT / cfg["paths"]["data_dir"] / samples[0]).read_bytes()
+            is_mask = "_mask" in samples[0]
+            run = True
+        else:
+            st.error("data/train altinda demo icin ornek dosya bulunamadi.")
 
     if run and file_bytes is not None:
         with st.spinner("Pipeline calisiyor ..."):
@@ -342,11 +440,13 @@ def main():
         st.info("Soldan bir goruntu/maske yukleyip 'Analizi calistir' deyin.")
         return
 
-    (tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
+    (tab_demo, tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
      tab_route) = st.tabs(
-        ["Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
+        ["Demo Senaryo", "Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
          "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)",
          "A-B Rota"])
+    with tab_demo:
+        render_demo_tab(result)
     with tab_input:
         render_input_tab(result)
     with tab_graph:
