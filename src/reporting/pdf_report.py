@@ -34,6 +34,8 @@ def _styles():
                              textColor=_HEADER_BG, spaceBefore=14))
     sheet.add(ParagraphStyle("V2GCaption", parent=sheet["Normal"], fontSize=8,
                              textColor=colors.grey, alignment=1))
+    sheet.add(ParagraphStyle("V2GSummary", parent=sheet["Normal"], fontSize=10,
+                             leading=15, alignment=4, spaceBefore=4))
     return sheet
 
 
@@ -104,6 +106,55 @@ def _score_box(resilience):
     return box
 
 
+_VERDICTS = {
+    "A": "Ag genel olarak dayanikli kabul edilebilir; tekil kapanmalar "
+         "ulasimi ciddi sekilde tehdit etmemektedir.",
+    "B": "Ag makul bir dayaniklilik seviyesindedir; yine de en kritik "
+         "kavsaklar izlenmelidir.",
+    "C": "Ag orta duzeyde dayaniklidir; kritik kavsaklarda iyilestirme "
+         "yapilmasi onerilir.",
+    "D": "Ag kirilgandir; kritik kavsak ve kopru baglantilar oncelikli "
+         "olarak guclendirilmelidir.",
+    "E": "Ag cok kirilgandir; tekil hata noktalari ulasimi ciddi sekilde "
+         "tehdit etmektedir.",
+}
+
+
+def _executive_summary(counts, analysis, simulation, resilience):
+    """Analiz sayilarini duz Turkce bir yonetici ozeti paragrafina cevirir."""
+    parts = [
+        f"Incelenen yol agi {counts['node_count']} kavsak ve "
+        f"{counts['edge_count']} yol baglantisindan olusmakta, "
+        f"{counts['component_count']} ayri parca icermektedir.",
+        f"Genel dayaniklilik skoru {resilience['score']}/100 olarak "
+        f"hesaplanmis ve ag '{resilience['label']}' ({resilience['grade']}) "
+        f"sinifina yerlestirilmistir.",
+    ]
+
+    explanations = analysis.get("explanations") or []
+    if explanations:
+        parts.append(explanations[0]["explanation"])
+    elif analysis["top_critical_nodes"]:
+        top = analysis["top_critical_nodes"][0]["node"]
+        parts.append(f"Agin en kritik kavsagi Node {top} olarak belirlenmistir.")
+
+    targeted = simulation["targeted"]["robustness_index"]
+    random_index = simulation["random"]["robustness_index"]
+    if simulation["fragility_gap"] > 0.1:
+        parts.append(
+            f"Kademeli saldiri analizi, agin kasitli saldiriya rastsal "
+            f"arizadan belirgin sekilde daha kirilgan oldugunu gostermektedir "
+            f"(dayaniklilik indeksi kasitli {targeted}, rastsal {random_index}).")
+    else:
+        parts.append(
+            f"Ag, kasitli ve rastsal kapanmalara benzer dayaniklilik "
+            f"gostermektedir (dayaniklilik indeksi kasitli {targeted}, "
+            f"rastsal {random_index}).")
+
+    parts.append(_VERDICTS.get(resilience["grade"], ""))
+    return " ".join(part for part in parts if part)
+
+
 def build_pdf_report(output_dir, name, counts, analysis, simulation, resilience):
     """Faz 6 ana giris noktasi: kaydedilmis cikti ve metrikleri PDF'e derler.
 
@@ -121,6 +172,11 @@ def build_pdf_report(output_dir, name, counts, analysis, simulation, resilience)
                             f"Tarih: {date.today().isoformat()}", styles["Normal"]))
     story.append(Spacer(1, 10))
     story.append(_score_box(resilience))
+
+    story.append(Paragraph("Yonetici Ozeti", styles["V2GSection"]))
+    story.append(Paragraph(
+        _executive_summary(counts, analysis, simulation, resilience),
+        styles["V2GSummary"]))
 
     story.append(Paragraph("1. Yol Agi Ozeti", styles["V2GSection"]))
     story.append(_scaled_image(output_dir / "graphs" / f"{name}_graph.png", 11 * cm))
