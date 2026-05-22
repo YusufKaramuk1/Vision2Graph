@@ -18,6 +18,18 @@ graph:
 scale:
   meters_per_pixel: null      # bir sayi verilirse mesafeler metre cinsinden raporlanir
 
+# Faz 2 - Graph Intelligence: kritiklik skoru bilesenleri ve agirliklari
+analytics:
+  criticality:
+    node_weights:
+      betweenness: 0.50     # kac guzergah node'dan gecer
+      articulation: 0.35    # kaldirilinca ag parcalanir mi
+      degree: 0.15          # kavsak baglanti sayisi
+    edge_weights:
+      betweenness: 0.60     # kac en-kisa-yol kenari kullanir
+      bridge: 0.40          # kenar kopru mu (kaldirilinca bolunur)
+  worst_case_top_k: 5       # en kritik kac node icin kapanma simulasyonu
+
 # Resilience skoru bilesenleri seffaf tutulur (juriye savunulabilir olmasi icin)
 resilience:
   weights:
