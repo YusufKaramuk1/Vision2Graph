@@ -19,6 +19,7 @@ from pyvis.network import Network
 from src.analytics.criticality import analyze
 from src.analytics.explainability import explain_critical_nodes
 from src.analytics.improvement import suggest_improvements
+from src.analytics.regions import analyze_regions
 from src.analytics.resilience import resilience_score
 from src.analytics.routing import route_impact
 from src.analytics.scale import format_length, meters_per_pixel
@@ -33,6 +34,7 @@ from src.visualization.criticality_overlay import draw_criticality_overlay
 from src.visualization.degradation_plot import draw_degradation_plot
 from src.visualization.graph_overlay import draw_graph_overlay
 from src.visualization.improvement_overlay import draw_improvement_overlay
+from src.visualization.regions_overlay import draw_regions_overlay
 from src.visualization.resilience_card import draw_resilience_card
 from src.visualization.route_overlay import draw_route_overlay
 
@@ -478,6 +480,47 @@ def render_interactive_tab(result):
                    "Evet" if data.get("is_articulation") else "Hayir")
 
 
+def render_regions_tab(result, cfg):
+    graph = result["graph"]
+    st.write("Ag 2x2 mekansal bolgeye ayrilir; her bolgenin kendi ic yol agi "
+             "ayri puanlanir ve en kirilgan bolge belirlenir.")
+
+    if st.button("Bolge analizini calistir", type="primary"):
+        with st.spinner("Bolgeler degerlendiriliyor ..."):
+            st.session_state["regions"] = analyze_regions(graph, cfg)
+
+    region_data = st.session_state.get("regions")
+    if region_data is None:
+        st.info("Bolge analizi icin yukaridaki butona basin.")
+        return
+
+    st.subheader("Bolge skorlari")
+    st.dataframe(
+        [{"bolge": r["region"], "kavsak": r["node_count"],
+          "skor": r["score"] if r["score"] is not None else "-",
+          "sinif": r["grade"]} for r in region_data["regions"]],
+        use_container_width=True)
+
+    weakest = region_data["weakest"]
+    if weakest is None:
+        st.warning("Bolgeler ayri analiz icin yeterince buyuk degil.")
+        return
+
+    st.error(f"En kirilgan bolge: {weakest['region']} - skor "
+             f"{weakest['score']}/100 ({weakest['label']}). Bu bolge ile ana "
+             f"omurga arasinda ek baglanti kurmak iyilestirme onceligidir.")
+    if weakest["top_critical"]:
+        st.write("Bu bolgenin en kritik kavsaklari:")
+        st.dataframe(weakest["top_critical"], use_container_width=True)
+
+    st.subheader("Bolge haritasi")
+    st.image(to_rgb(draw_regions_overlay(result["source"], graph,
+                                         weakest["nodes"])),
+             caption="Kirmizi: en kirilgan bolgenin kavsaklari  |  "
+                     "cizgiler: 2x2 bolge siniri",
+             use_container_width=True)
+
+
 def main():
     st.set_page_config(page_title="Vision2Graph", layout="wide")
     cfg = load_config()
@@ -528,7 +571,9 @@ def main():
         with st.spinner("Pipeline calisiyor ..."):
             try:
                 st.session_state["result"] = run_pipeline(file_bytes, is_mask, cfg)
-                st.session_state.pop("improvement", None)  # eski oneriyi temizle
+                # yeni analizde eski on-demand sonuclari temizle
+                st.session_state.pop("improvement", None)
+                st.session_state.pop("regions", None)
             except Exception as exc:
                 st.session_state.pop("result", None)
                 st.error(f"Hata: {exc}")
@@ -539,10 +584,10 @@ def main():
         return
 
     (tab_demo, tab_input, tab_graph, tab_crit, tab_sim, tab_res, tab_whatif,
-     tab_route, tab_improve, tab_interactive) = st.tabs(
+     tab_route, tab_improve, tab_regions, tab_interactive) = st.tabs(
         ["Demo Senaryo", "Girdi & Maske", "Yol Grafigi", "Kritiklik (Faz 2)",
          "Simulasyon (Faz 3)", "Resilience (Faz 4)", "What-if (Kapanma)",
-         "A-B Rota", "Iyilestirme", "Interaktif Graph"])
+         "A-B Rota", "Iyilestirme", "Bolge Analizi", "Interaktif Graph"])
     with tab_demo:
         render_demo_tab(result)
     with tab_input:
@@ -561,6 +606,8 @@ def main():
         render_route_tab(result)
     with tab_improve:
         render_improvement_tab(result, cfg)
+    with tab_regions:
+        render_regions_tab(result, cfg)
     with tab_interactive:
         render_interactive_tab(result)
 
