@@ -78,6 +78,15 @@ streamlit run app.py
 Tarayıcı arayüzünden görüntü/maske yüklenir veya hazır örnek veri seçilir; tüm
 analiz sonuçları sekmeler halinde görüntülenir.
 
+## Testler
+
+```bash
+pytest
+```
+
+`tests/` altındaki birim testleri elde üretilen sentetik bir yol grafiği
+üzerinde çalışır; gerçek veri veya model checkpoint'i gerektirmez.
+
 ## Proje Yapısı
 
 ```
