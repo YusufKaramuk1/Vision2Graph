@@ -18,6 +18,7 @@ from src.analytics.criticality import analyze
 from src.analytics.resilience import resilience_score
 from src.inference.infer_road_mask import (infer_from_image, load_mask_file,
                                            resolve_device)
+from src.reporting.pdf_report import build_pdf_report
 from src.simulation.attack import simulate
 from src.topology.graph_builder import basic_counts, build_graph
 from src.topology.skeletonizer import mask_to_skeleton
@@ -46,32 +47,32 @@ def run(args):
     name = Path(args.input).stem
 
     if args.mask:
-        print("[1/7] Hazir yol maskesi yukleniyor ...")
+        print("[1/8] Hazir yol maskesi yukleniyor ...")
         mask = load_mask_file(args.input)
         base = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
     else:
         device = resolve_device(cfg["inference"]["device"])
-        print(f"[1/7] D-LinkNet ile yol maskesi cikariliyor (device={device}) ...")
+        print(f"[1/8] D-LinkNet ile yol maskesi cikariliyor (device={device}) ...")
         mask, base = infer_from_image(
             ROOT / cfg["paths"]["model_checkpoint"], args.input,
             device, cfg["inference"]["threshold"])
 
     cv2.imwrite(str(output_dir / "masks" / f"{name}_mask.png"), mask)
 
-    print("[2/7] Skeleton cikariliyor ...")
+    print("[2/8] Skeleton cikariliyor ...")
     skeleton = mask_to_skeleton(mask, cfg["skeleton"]["min_object_size"],
                                 cfg["skeleton"]["closing_kernel"])
     cv2.imwrite(str(output_dir / "skeletons" / f"{name}_skeleton.png"), skeleton * 255)
 
-    print("[3/7] Graph olusturuluyor ...")
+    print("[3/8] Graph olusturuluyor ...")
     graph = build_graph(skeleton, cfg["graph"]["spur_length_threshold"],
                         cfg["graph"]["min_component_length"])
 
-    print("[4/7] Graph overlay ciziliyor ...")
+    print("[4/8] Graph overlay ciziliyor ...")
     overlay = draw_graph_overlay(base, graph)
     cv2.imwrite(str(output_dir / "graphs" / f"{name}_graph.png"), overlay)
 
-    print("[5/7] Graph analizi (kritiklik + worst-case) ...")
+    print("[5/8] Graph analizi (kritiklik + worst-case) ...")
     analysis = analyze(graph, cfg)
     crit_overlay = draw_criticality_overlay(base, graph)
     cv2.imwrite(str(output_dir / "graphs" / f"{name}_criticality.png"), crit_overlay)
@@ -79,7 +80,7 @@ def run(args):
               encoding="utf-8") as f:
         json.dump(analysis, f, indent=2, ensure_ascii=False)
 
-    print("[6/7] Kapanma simulasyonu (kasitli vs rastsal saldiri) ...")
+    print("[6/8] Kapanma simulasyonu (kasitli vs rastsal saldiri) ...")
     simulation = simulate(graph, cfg)
     draw_degradation_plot(
         simulation, str(output_dir / "simulations" / f"{name}_degradation.png"))
@@ -87,7 +88,7 @@ def run(args):
               encoding="utf-8") as f:
         json.dump(simulation, f, indent=2, ensure_ascii=False)
 
-    print("[7/7] Resilience skoru hesaplaniyor ...")
+    print("[7/8] Resilience skoru hesaplaniyor ...")
     resilience = resilience_score(graph, analysis, simulation, cfg)
     draw_resilience_card(
         resilience, str(output_dir / "reports" / f"{name}_resilience.png"))
@@ -95,14 +96,20 @@ def run(args):
               encoding="utf-8") as f:
         json.dump(resilience, f, indent=2, ensure_ascii=False)
 
+    counts = basic_counts(graph)
+    print("[8/8] PDF rapor olusturuluyor ...")
+    report_path = build_pdf_report(output_dir, name, counts, analysis,
+                                   simulation, resilience)
+
     print("\n=== Graph Ozeti ===")
-    for key, value in basic_counts(graph).items():
+    for key, value in counts.items():
         print(f"  {key:18s}: {value}")
 
     print_analysis(analysis)
     print_simulation(simulation)
     print_resilience(resilience)
-    print(f"\nCiktilar: {output_dir}")
+    print(f"\nPDF rapor: {report_path}")
+    print(f"Ciktilar: {output_dir}")
 
 
 def print_analysis(analysis):

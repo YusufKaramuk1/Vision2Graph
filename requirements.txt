@@ -11,3 +11,4 @@ pyyaml
 streamlit
 pyvis
 streamlit-agraph
+reportlab
