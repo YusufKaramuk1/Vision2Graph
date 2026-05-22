@@ -17,9 +17,11 @@ import yaml
 from src.analytics.criticality import analyze
 from src.inference.infer_road_mask import (infer_from_image, load_mask_file,
                                            resolve_device)
+from src.simulation.attack import simulate
 from src.topology.graph_builder import basic_counts, build_graph
 from src.topology.skeletonizer import mask_to_skeleton
 from src.visualization.criticality_overlay import draw_criticality_overlay
+from src.visualization.degradation_plot import draw_degradation_plot
 from src.visualization.graph_overlay import draw_graph_overlay
 
 ROOT = Path(__file__).resolve().parent
@@ -42,44 +44,53 @@ def run(args):
     name = Path(args.input).stem
 
     if args.mask:
-        print("[1/5] Hazir yol maskesi yukleniyor ...")
+        print("[1/6] Hazir yol maskesi yukleniyor ...")
         mask = load_mask_file(args.input)
         base = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
     else:
         device = resolve_device(cfg["inference"]["device"])
-        print(f"[1/5] D-LinkNet ile yol maskesi cikariliyor (device={device}) ...")
+        print(f"[1/6] D-LinkNet ile yol maskesi cikariliyor (device={device}) ...")
         mask, base = infer_from_image(
             ROOT / cfg["paths"]["model_checkpoint"], args.input,
             device, cfg["inference"]["threshold"])
 
     cv2.imwrite(str(output_dir / "masks" / f"{name}_mask.png"), mask)
 
-    print("[2/5] Skeleton cikariliyor ...")
+    print("[2/6] Skeleton cikariliyor ...")
     skeleton = mask_to_skeleton(mask, cfg["skeleton"]["min_object_size"],
                                 cfg["skeleton"]["closing_kernel"])
     cv2.imwrite(str(output_dir / "skeletons" / f"{name}_skeleton.png"), skeleton * 255)
 
-    print("[3/5] Graph olusturuluyor ...")
+    print("[3/6] Graph olusturuluyor ...")
     graph = build_graph(skeleton, cfg["graph"]["spur_length_threshold"],
                         cfg["graph"]["min_component_length"])
 
-    print("[4/5] Graph overlay ciziliyor ...")
+    print("[4/6] Graph overlay ciziliyor ...")
     overlay = draw_graph_overlay(base, graph)
     cv2.imwrite(str(output_dir / "graphs" / f"{name}_graph.png"), overlay)
 
-    print("[5/5] Graph analizi (kritiklik + worst-case) ...")
+    print("[5/6] Graph analizi (kritiklik + worst-case) ...")
     analysis = analyze(graph, cfg)
     crit_overlay = draw_criticality_overlay(base, graph)
     cv2.imwrite(str(output_dir / "graphs" / f"{name}_criticality.png"), crit_overlay)
-    report_path = output_dir / "reports" / f"{name}_analysis.json"
-    with open(report_path, "w", encoding="utf-8") as f:
+    with open(output_dir / "reports" / f"{name}_analysis.json", "w",
+              encoding="utf-8") as f:
         json.dump(analysis, f, indent=2, ensure_ascii=False)
+
+    print("[6/6] Kapanma simulasyonu (kasitli vs rastsal saldiri) ...")
+    simulation = simulate(graph, cfg)
+    draw_degradation_plot(
+        simulation, str(output_dir / "simulations" / f"{name}_degradation.png"))
+    with open(output_dir / "simulations" / f"{name}_simulation.json", "w",
+              encoding="utf-8") as f:
+        json.dump(simulation, f, indent=2, ensure_ascii=False)
 
     print("\n=== Graph Ozeti ===")
     for key, value in basic_counts(graph).items():
         print(f"  {key:18s}: {value}")
 
     print_analysis(analysis)
+    print_simulation(simulation)
     print(f"\nCiktilar: {output_dir}")
 
 
@@ -100,6 +111,14 @@ def print_analysis(analysis):
         print(f"    node {impact['node']:>4}  LCR dususu={impact['lcr_drop']}  "
               f"verim kaybi=%{impact['efficiency_drop_pct']}  "
               f"bilesen={impact['components_after']}")
+
+
+def print_simulation(simulation):
+    """Faz 3 kapanma simulasyonu sonucunu konsola ozetler."""
+    print("\n=== Kapanma Simulasyonu (Faz 3) ===")
+    print(f"  Dayaniklilik indeksi  -> kasitli : {simulation['targeted']['robustness_index']}")
+    print(f"                           rastsal : {simulation['random']['robustness_index']}")
+    print(f"  Kirilganlik farki (fragility_gap): {simulation['fragility_gap']}")
 
 
 def main():

@@ -30,6 +30,11 @@ analytics:
       bridge: 0.40          # kenar kopru mu (kaldirilinca bolunur)
   worst_case_top_k: 5       # en kritik kac node icin kapanma simulasyonu
 
+# Faz 3 - Simulation: kademeli saldiri / kapanma simulasyonu
+simulation:
+  max_fraction: 0.5     # node'larin en fazla bu orani kaldirilarak egri cizilir
+  random_runs: 5        # rastsal saldiri egrisi kac kosunun ortalamasi
+
 # Resilience skoru bilesenleri seffaf tutulur (juriye savunulabilir olmasi icin)
 resilience:
   weights:
