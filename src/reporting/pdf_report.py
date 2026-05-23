@@ -82,15 +82,19 @@ def _table(data):
 
 
 def _records_table(rows):
-    """Sozluk listesini (orn. en kritik node'lar) tabloya cevirir."""
+    """Sozluk listesini (orn. en kritik node'lar) tabloya cevirir.
+
+    KeepTogether: tablo sayfa altinda son satiri ayri sayfaya birakmasin.
+    """
     headers = list(rows[0].keys())
     body = [[_fmt(row[key]) for key in headers] for row in rows]
-    return _table([headers] + body)
+    return KeepTogether(_table([headers] + body))
 
 
 def _pairs_table(pairs):
-    """(anahtar, deger) ciftlerini iki sutunlu tabloya cevirir."""
-    return _table([["Metrik", "Deger"]] + [[k, _fmt(v)] for k, v in pairs])
+    """(anahtar, deger) ciftlerini iki sutunlu tabloya cevirir (sayfa bolunmez)."""
+    return KeepTogether(
+        _table([["Metrik", "Deger"]] + [[k, _fmt(v)] for k, v in pairs]))
 
 
 def _score_box(resilience):
