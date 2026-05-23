@@ -11,8 +11,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import (Image, Paragraph, SimpleDocTemplate, Spacer,
-                                Table, TableStyle)
+from reportlab.platypus import (Image, KeepTogether, Paragraph,
+                                SimpleDocTemplate, Spacer, Table, TableStyle)
 
 from src.analytics.scale import format_length
 
@@ -216,8 +216,9 @@ def build_pdf_report(output_dir, name, counts, analysis, simulation, resilience,
                            styles["V2GCaption"]))
     story.append(Spacer(1, 6))
     story.append(_pairs_table([
-        ("Kasitli saldiri R", simulation["targeted"]["robustness_index"]),
         ("Rastsal ariza R", simulation["random"]["robustness_index"]),
+        ("Kasitli statik R", simulation["targeted"]["robustness_index"]),
+        ("Kasitli adaptif R", simulation["adaptive"]["robustness_index"]),
         ("Kirilganlik farki", simulation["fragility_gap"]),
     ]))
 
@@ -229,7 +230,8 @@ def build_pdf_report(output_dir, name, counts, analysis, simulation, resilience,
     breakdown = [["Bilesen", "Skor (0-1)", "Agirlik"]]
     for key, value in resilience["components"].items():
         breakdown.append([key, _fmt(value), _fmt(weights.get(key, "-"))])
-    story.append(_table(breakdown))
+    # KeepTogether: tablonun basligi ve govdesi ayri sayfalara bolunmesin
+    story.append(KeepTogether(_table(breakdown)))
 
     SimpleDocTemplate(
         str(report_path), pagesize=A4,
