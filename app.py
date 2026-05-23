@@ -73,6 +73,12 @@ def to_rgb(image):
     return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
 
+def _centered_image(image, caption=None, **kwargs):
+    """Tek buyuk overlay'i sayfa genisliginin ~%60'inda ortali gosterir."""
+    _, middle, _ = st.columns([1, 3, 1])
+    middle.image(image, caption=caption, **kwargs)
+
+
 def run_pipeline(file_bytes, is_mask, cfg):
     """Yuklenen dosyadan tum Vision2Graph cikti zincirini uretir."""
     buffer = np.frombuffer(file_bytes, dtype=np.uint8)
@@ -140,7 +146,7 @@ def render_graph_tab(result):
 
 def render_criticality_tab(result):
     analysis = result["analysis"]
-    st.image(to_rgb(result["criticality_overlay"]),
+    _centered_image(to_rgb(result["criticality_overlay"]),
              caption="Kritiklik isi haritasi - kirmizi = yuksek, beyaz halka = kesim noktasi",
              use_container_width=True)
     col1, col2 = st.columns(2)
@@ -245,7 +251,7 @@ def render_whatif_tab(result, cfg):
     st.subheader("Gorsel")
     overlay = draw_closure_overlay(result["source"], graph,
                                    closed_nodes, impact["isolated_node_list"])
-    st.image(to_rgb(overlay),
+    _centered_image(to_rgb(overlay),
              caption="Siyah X: kapatilan kavsak  |  kirmizi: ana agdan kopan "
                      "yol/kavsak  |  gri: ayakta kalan ag",
              use_container_width=True)
@@ -304,7 +310,7 @@ def render_route_tab(result):
     st.subheader("Gorsel")
     overlay = draw_route_overlay(result["source"], graph, impact["before_path"],
                                  impact["after_path"], source, target)
-    st.image(to_rgb(overlay),
+    _centered_image(to_rgb(overlay),
              caption="Yesil: baslangic  |  kirmizi: hedef  |  mavi: kapanma "
                      "oncesi rota  |  turuncu: kapanma sonrasi rota",
              use_container_width=True)
@@ -357,7 +363,7 @@ def render_demo_tab(result):
     row2 = st.columns(2)
     row2[0].metric("Izole kavsak", impact["isolated_nodes"])
     row2[1].metric("Kopan ag orani", f"%{impact['isolation_ratio_pct']}")
-    st.image(to_rgb(draw_closure_overlay(result["source"], graph, [critical],
+    _centered_image(to_rgb(draw_closure_overlay(result["source"], graph, [critical],
                                          impact["isolated_node_list"])),
              caption="Magenta X: kapatilan kavsak  |  kirmizi: ana agdan kopan kisim",
              use_container_width=True)
@@ -380,7 +386,7 @@ def render_demo_tab(result):
         else:
             rcols[1].metric("Sonraki rota", "KESILDI")
             rcols[2].metric("Rota uzamasi", "sonsuz")
-        st.image(to_rgb(draw_route_overlay(result["source"], graph,
+        _centered_image(to_rgb(draw_route_overlay(result["source"], graph,
                                            route["before_path"],
                                            route["after_path"],
                                            source_node, target_node)),
@@ -431,7 +437,7 @@ def render_improvement_tab(result, cfg):
     st.dataframe(suggestion["suggestions"], use_container_width=True)
 
     st.subheader("Onerilen baglanti")
-    st.image(to_rgb(draw_improvement_overlay(result["source"], graph,
+    _centered_image(to_rgb(draw_improvement_overlay(result["source"], graph,
                                              best["edge"])),
              caption="Yesil: aga onerilen yeni yol baglantisi",
              use_container_width=True)
@@ -517,7 +523,7 @@ def render_regions_tab(result, cfg):
         st.dataframe(weakest["top_critical"], use_container_width=True)
 
     st.subheader("Bolge haritasi")
-    st.image(to_rgb(draw_regions_overlay(result["source"], graph,
+    _centered_image(to_rgb(draw_regions_overlay(result["source"], graph,
                                          weakest["nodes"])),
              caption="Kirmizi: en kirilgan bolgenin kavsaklari  |  "
                      "cizgiler: 2x2 bolge siniri",
@@ -612,7 +618,7 @@ def render_collapse_tab(result):
     if gif is None:
         st.info("Animasyon icin yukaridaki butona basin.")
         return
-    st.image(gif, caption="En kritik kavsaklar sirayla kaldiriliyor",
+    _centered_image(gif, caption="En kritik kavsaklar sirayla kaldiriliyor",
              use_container_width=True)
 
 
@@ -662,7 +668,7 @@ def render_disaster_tab(result):
     after_col.metric("En buyuk bilesen orani", after["lcr"],
                      delta=round(after["lcr"] - before["lcr"], 4))
 
-    st.image(to_rgb(draw_closure_overlay(result["source"], graph, closed,
+    _centered_image(to_rgb(draw_closure_overlay(result["source"], graph, closed,
                                          impact["isolated_node_list"])),
              caption="Magenta X: kapanan kavsaklar  |  kirmizi: ana agdan kopan "
                      "kisim  |  gri: ayakta kalan ag",
@@ -689,7 +695,7 @@ def render_simplification_tab(result):
         format_func=lambda lv: f"Seviye {lv} - {DETAIL_LEVELS[lv][0]}",
         horizontal=True)
     selected = next(lvl for lvl in levels if lvl["level"] == choice)
-    st.image(to_rgb(draw_graph_overlay(result["source"], selected["graph"])),
+    _centered_image(to_rgb(draw_graph_overlay(result["source"], selected["graph"])),
              caption=f"Seviye {choice}: {selected['name']} - yollarin "
                      f"%{selected['edge_ratio_pct']}'i korundu",
              use_container_width=True)
