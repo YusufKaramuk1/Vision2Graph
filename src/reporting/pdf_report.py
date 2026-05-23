@@ -32,8 +32,11 @@ _HEADER_BG = colors.HexColor("#2c3e50")
 def _styles():
     sheet = getSampleStyleSheet()
     sheet.add(ParagraphStyle("V2GTitle", parent=sheet["Title"], fontSize=20))
+    # keepWithNext: bolum basligi sayfanin altinda yalniz kalmasin, ilk icerik
+    # ile (genellikle gorsel) birlikte sonraki sayfaya tasinsin
     sheet.add(ParagraphStyle("V2GSection", parent=sheet["Heading2"],
-                             textColor=_HEADER_BG, spaceBefore=14))
+                             textColor=_HEADER_BG, spaceBefore=14,
+                             keepWithNext=1))
     sheet.add(ParagraphStyle("V2GCaption", parent=sheet["Normal"], fontSize=8,
                              textColor=colors.grey, alignment=1))
     sheet.add(ParagraphStyle("V2GSummary", parent=sheet["Normal"], fontSize=10,
