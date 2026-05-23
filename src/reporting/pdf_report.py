@@ -189,7 +189,7 @@ def build_pdf_report(output_dir, name, counts, analysis, simulation, resilience,
         styles["V2GSummary"]))
 
     story.append(Paragraph("1. Yol Agi Ozeti", styles["V2GSection"]))
-    story.append(_scaled_image(output_dir / "graphs" / f"{name}_graph.png", 11 * cm))
+    story.append(_scaled_image(output_dir / "graphs" / f"{name}_graph.png", 8 * cm))
     story.append(Paragraph("Goruntuden cikarilan yol grafigi", styles["V2GCaption"]))
     story.append(Spacer(1, 6))
     count_pairs = [
@@ -200,7 +200,7 @@ def build_pdf_report(output_dir, name, counts, analysis, simulation, resilience,
 
     story.append(Paragraph("2. Kritiklik Analizi", styles["V2GSection"]))
     story.append(_scaled_image(
-        output_dir / "graphs" / f"{name}_criticality.png", 11 * cm))
+        output_dir / "graphs" / f"{name}_criticality.png", 8 * cm))
     story.append(Paragraph(
         "Kritiklik isi haritasi - kirmizi yuksek, beyaz halka kesim noktasi",
         styles["V2GCaption"]))
